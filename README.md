@@ -18,7 +18,7 @@
 
 <p align="center">
   <!-- GIF DEMO - 动态图演示 -->
-  <img src="(https://github.com/user-attachments/assets/aedf009f-a3c0-484a-ab4b-e38c00b23a50)" alt="Bot Demo GIF" width="800">
+  <img src="([https://github.com/user-attachments/assets/aedf009f-a3c0-484a-ab4b-e38c00b23a50](https://github.com/user-attachments/assets/aedf009f-a3c0-484a-ab4b-e38c00b23a50))" alt="Bot Demo GIF" width="800">
   <br>
   <br>
 </p>
@@ -162,3 +162,4 @@ This project is for educational purposes. Cryptocurrency trading involves signif
 
 </details>
 </div>
+
