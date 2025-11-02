@@ -81,10 +81,34 @@ This bot is a powerful tool in its current state, but it's important to understa
 ---
 
 ## Installation & Setup
-1.  **Clone the Repository**: `git clone https://github.com/UPwith-me/Orion-Trader.git`
-2.  **Navigate & Create Venv**: `cd YourRepoName` and `python -m venv venv`
-3.  **Activate & Install**: Activate the virtual environment and run `pip install -r requirements.txt`
-4.  **Configure API**: Copy `.env.example` to `.env` and fill in your OKX API keys.
+
+1.  **Clone the Repository**
+    ```bash
+    git clone https://github.com/UPwith-me/Orion-Trader.git
+    ```
+
+2.  **Navigate & Create Virtual Environment (Recommended)**
+    ```bash
+    cd Orion-Trader
+    python -m venv venv
+    ```
+
+3.  **Activate Environment & Install Dependencies**
+    ```bash
+    # Activate on Windows
+    .\venv\Scripts\activate
+    
+    # Activate on macOS/Linux
+    source venv/bin/activate
+
+    # Install requirements
+    pip install -r requirements.txt
+    ```
+
+4.  **Configure API Keys**
+    -   Find the `.env.example` file in the project directory.
+    -   Make a copy of it and rename the copy to `.env`.
+    -   Open the `.env` file and fill in your OKX API keys.
 ## Usage
 Launch the GUI with `python okx_bot.py`. The workflow is designed to be intuitive: Scan -> Review -> Start.
 ## ⚠️ Disclaimer
@@ -149,10 +173,34 @@ This project is for educational purposes. Cryptocurrency trading involves signif
 ---
 
 ## 安装与配置
-1.  **克隆仓库**: `git clone https://github.com/UPwith-me/Orion-Trader.git`
-2.  **进入目录并创建虚拟环境**: `cd YourRepoName` 然后 `python -m venv venv`
-3.  **激活环境并安装依赖**: 激活虚拟环境后运行 `pip install -r requirements.txt`
-4.  **配置API**: 复制 `.env.example` 为 `.env` 并填入你的OKX API密钥。
+
+1.  **克隆仓库**
+    ```bash
+    git clone https://github.com/UPwith-me/Orion-Trader.git
+    ```
+
+2.  **进入目录并创建虚拟环境 (推荐)**
+    ```bash
+    cd Orion-Trader
+    python -m venv venv
+    ```
+
+3.  **激活环境并安装依赖**
+    ```bash
+    # 在 Windows 上激活
+    .\venv\Scripts\activate
+    
+    # 在 macOS/Linux 上激活
+    source venv/bin/activate
+
+    # 安装依赖
+    pip install -r requirements.txt
+    ```
+
+4.  **配置API密钥**
+    -   找到项目目录中的 `.env.example` 文件。
+    -   复制该文件，并将副本重命名为 `.env`。
+    -   打开 `.env` 文件，填入你从OKX官网申请的API密钥。
 ## 使用方法
 运行 `python okx_bot.py` 启动图形界面。整个工作流非常直观：扫描 -> 审查 -> 启动。
 ## ⚠️ 重要声明
@@ -160,5 +208,6 @@ This project is for educational purposes. Cryptocurrency trading involves signif
 
 </details>
 </div>
+
 
 
