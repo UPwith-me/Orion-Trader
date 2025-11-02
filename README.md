@@ -20,7 +20,6 @@
   <!-- GIF DEMO - 动态图演示 -->
   <img src="https://github.com/user-attachments/assets/a71ae6e8-4795-40fc-8f3e-4accdc8cb333" alt="Bot Demo GIF" width="800">
   <br>
-  <em>强烈建议：将上方链接替换为您录制的程序操作GIF。一个动态演示远胜千言万语！</em>
   <br>
   <em>(Highly Recommended: Replace the link above with a GIF demonstrating the bot in action. A dynamic demo is worth a thousand words!)</em>
 </p>
@@ -129,4 +128,5 @@ This project is for educational purposes. Cryptocurrency trading involves signif
 本项目仅为技术研究目的，数字货币交易风险极高。作者对使用此软件造成的任何资金损失概不负责。请务必自行承担风险。
 
 </details>
+
 </div>
