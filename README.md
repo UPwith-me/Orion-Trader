@@ -18,7 +18,7 @@
 
 <p align="center">
   <!-- GIF DEMO - 动态图演示 -->
-  <img src="https://github.com/user-attachments/assets/a71ae6e8-4795-40fc-8f3e-4accdc8cb333" alt="Bot Demo GIF" width="800">
+  <img src="(https://github.com/user-attachments/assets/aedf009f-a3c0-484a-ab4b-e38c00b23a50)" alt="Bot Demo GIF" width="800">
   <br>
   <br>
 </p>
@@ -64,7 +64,24 @@ Stop guessing parameters. Based on the "Gem Hunter's" analysis, the bot instantl
 Risk management cannot be slow. The Guardian runs in a separate, high-priority thread, polling the price at a much higher frequency than the main trading loop. This decoupling ensures that your trailing stop-loss is monitored with millisecond precision, protecting your capital from sudden market crashes, independent of any other task the bot is performing.
 
 ---
-<!-- Setup, Usage, and Disclaimer sections are the same, just included for completeness -->
+
+## Project Status & Future Roadmap
+
+This bot is a powerful tool in its current state, but it's important to understand its scope. This project is under active development, and here's a look at what's planned for the future.
+
+### What This Bot Is (and Isn't) Right Now:
+*   ✅ **OKX-Exclusive:** The current version is tightly integrated with the OKX v5 API for spot trading.
+*   ✅ **Standalone Engine:** The bot relies entirely on its internal "Gem Hunter" scanning engine. It does not currently support external signals from platforms like TradingView (via webhooks).
+*   ✅ **Focused Trading:** The bot is designed to find the single *best* trading opportunity and focus on it. It does not support running strategies on multiple currency pairs simultaneously.
+
+### On the Horizon (Future Roadmap):
+*   🔹 **Multi-Exchange Integration:** The top priority is to refactor the API client into a modular structure, allowing for the addition of other major exchanges like Binance, Bybit, or KuCoin.
+*   🔹 **TradingView Webhook Support:** A major upcoming feature will be the ability to listen for webhook alerts from TradingView, allowing users to execute their own custom strategies.
+*   🔹 **Multi-Symbol Portfolio Mode:** An advanced mode that would allow the bot to run multiple, independent strategies on different coins at the same time.
+*   🔹 **Strategy Backtesting:** Integrating a simple backtesting framework to test strategy parameters on historical data.
+
+---
+
 ## Installation & Setup
 1.  **Clone the Repository**: `git clone https://github.com/YourUsername/YourRepoName.git`
 2.  **Navigate & Create Venv**: `cd YourRepoName` and `python -m venv venv`
@@ -115,7 +132,24 @@ This project is for educational purposes. Cryptocurrency trading involves signif
 风险管理，唯快不破。“守护者”在一个独立的、高优先级的线程中运行，它轮询价格的频率远高于主交易循环。这种“解耦”设计确保了你的追踪止损能被毫秒级精确监控，使其在市场闪崩时能第一时间保护你的本金，而不受机器人其他任务（如下单、日志记录）的任何影响。
 
 ---
-<!-- 安装、使用和免责声明部分保持不变 -->
+
+## 项目状态与未来路线图
+
+当前版本的机器人已是一个强大工具，但了解其明确的设计范围同样重要。这是一个活跃开发中的项目，以下是我们对未来的规划。
+
+### 当前版本的设计焦点:
+*   ✅ **OKX 交易所专属:** 当前版本为 OKX v5 API 深度集成，专注于现货交易。
+*   ✅ **内置引擎驱动:** 机器人完全依赖其内置的“妖币猎手”扫描引擎来发现机会，暂不支持接收 TradingView 等外部平台的信号（例如通过 Webhook）。
+*   ✅ **单币种专注策略:** 机器人的核心设计是找到当下市场中**唯一最佳**的交易机会并集中处理，暂不支持在多个币种上**同时**运行多个策略。
+
+### 未来开发计划 (路线图):
+*   🔹 **多交易所支持:** 最高优先级是将API客户端重构为模块化结构，以便未来能接入币安 (Binance)、Bybit、KuCoin 等其他主流交易所。
+*   🔹 **TradingView Webhook 对接:** 一个重要的新功能，使机器人能接收来自 TradingView 的告警信号，从而执行用户的自定义策略。
+*   🔹 **多币种组合模式:** 开发一种高级模式，允许机器人在多个不同币种上，同时运行多个独立的交易策略。
+*   🔹 **策略回测框架:** 集成一个简单的回测系统，用于在历史数据上测试策略参数的有效性。
+
+---
+
 ## 安装与配置
 1.  **克隆仓库**: `git clone https://github.com/YourUsername/YourRepoName.git`
 2.  **进入目录并创建虚拟环境**: `cd YourRepoName` 然后 `python -m venv venv`
@@ -124,9 +158,7 @@ This project is for educational purposes. Cryptocurrency trading involves signif
 ## 使用方法
 运行 `python okx_bot.py` 启动图形界面。整个工作流非常直观：扫描 -> 审查 -> 启动。
 ## ⚠️ 重要声明
-本项目仅为技术研究目的，数字货币交易风险极高。作者对使用此软件造成的任何资金损失概不负责。请务必自行承担风险。
+本项目仅为技术研究目的，数字货币交易风险极高。作者对使用此软件造成的任何资金损失概不负责。请务务必自行承担风险。
 
 </details>
-
 </div>
-
