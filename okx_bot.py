@@ -99,7 +99,12 @@ API_CREDENTIALS = {
         }
     }
 }
-PROXIES = None; BASE_URL = 'https://www.okx.com'; REQUEST_TIMEOUT = 5; LOG_FILE = "trading_log.csv"; CONFIG_FILE = "config.json"
+PROXIES = {
+    'http': 'http://127.0.0.1:7897',
+    'https':'http://127.0.0.1:7897'
+}
+#SOMETIMES YOU NEED TO CHANGE IT(EXAMPLE)
+BASE_URL = 'https://www.okx.com'; REQUEST_TIMEOUT = 5; LOG_FILE = "trading_log.csv"; CONFIG_FILE = "config.json"
 IS_DEMO_MODE = True
 
 config_lock = threading.Lock()
@@ -173,42 +178,38 @@ def okx_request(method, request_path, body_str="", max_retries=3, key_type="trad
             if attempt < max_retries - 1: time.sleep(1 * (2 ** attempt)); continue
             raise NetworkError(f"Network error after {max_retries} retries: {e}") from e
     raise Exception("Request failed after all retries.")
-def is_trend_down(symbol_api, log_queue):
+def is_trend_down(symbol_api, log_queue, t):
     """
     使用EMA判断当前是否处于下跌趋势。
     返回 True 表示处于下跌趋势 (应暂停开仓)，False 表示可以交易。
     """
     try:
-        # 获取足够的历史数据来计算EMA，通常需要周期 x 2 的数据量
         limit = TREND_FILTER_EMA_PERIOD * 2
         kline_resp = okx_request('GET', f"/api/v5/market/history-candles?instId={symbol_api}&bar=15m&limit={limit}")
         kline_data = kline_resp.get('data')
 
         if not kline_data or len(kline_data) < TREND_FILTER_EMA_PERIOD:
-            print_to_queue(log_queue, 'log', "⚠️ 趋势过滤器数据不足，暂时允许交易。")
+            print_to_queue(log_queue, 'log', t("log_trend_data_insufficient"))
             return False
 
-        # 提取收盘价
         closes = [float(k[4]) for k in kline_data]
-        closes.reverse() # OKX返回的数据是最新的在前，需要反转
+        closes.reverse()
         
-        # 使用pandas计算EMA
         df = pd.DataFrame(closes, columns=['close'])
         df['ema'] = df['close'].ewm(span=TREND_FILTER_EMA_PERIOD, adjust=False).mean()
         
         current_price = df['close'].iloc[-1]
         current_ema = df['ema'].iloc[-1]
 
-        # 核心判断逻辑：如果当前价格低于EMA，则认为处于下跌趋势
         if current_price < current_ema:
-            print_to_queue(log_queue, 'log', f"ℹ️ 趋势过滤: 当前价 {current_price:.4f} < EMA({TREND_FILTER_EMA_PERIOD}) {current_ema:.4f}。暂停开仓。")
+            print_to_queue(log_queue, 'log', t("log_trend_down", price=f"{current_price:.4f}", period=TREND_FILTER_EMA_PERIOD, ema=f"{current_ema:.4f}"))
             return True
         else:
             return False
             
     except Exception as e:
-        print_to_queue(log_queue, 'log', f"❌ 趋势过滤器计算失败: {e}。为安全起见，暂时允许交易。")
-        return False # 发生错误时，默认为不处于下跌趋势，避免程序卡死
+        print_to_queue(log_queue, 'log', t("log_trend_error", error=e))
+        return False
 # ==============================================================================
 # --- 3. MARKET SCANNER & ANALYSIS (V22.0 "VOLATILITY HUNTER" I18N EDITION) ---
 # ==============================================================================
@@ -400,18 +401,27 @@ def load_state():
             return (state_data.get('grid_orders', {}), set(state_data.get('profit_orders', [])), Decimal(state_data.get('entry_price', '0')), Decimal(state_data.get('stop_loss_price', '0')), Decimal(state_data.get('total_position_size', '0')), Decimal(state_data.get('total_position_cost', '0')))
         except (json.JSONDecodeError, IOError, InvalidOperation) as e: print(f"Error loading {state_file}, starting fresh: {e}")
     return {}, set(), Decimal('0'), Decimal('0'), Decimal('0'), Decimal('0')
-def fetch_balances_and_price(log_queue):
+def fetch_balances_and_price(log_queue, t):
     try:
-        balance_data = okx_request('GET', "/api/v5/account/balance")['data'][0]; total_value_usdt = Decimal(balance_data.get('totalEq', '0'))
+        balance_data = okx_request('GET', "/api/v5/account/balance")['data'][0]
+        total_value_usdt = Decimal(balance_data.get('totalEq', '0'))
         base_bal, quote_bal, avail_base_bal, avail_quote_bal = (Decimal('0'),) * 4
         with config_lock: base_ccy, quote_ccy = dynamic_config['BASE_CURRENCY'], dynamic_config['QUOTE_CURRENCY']
         for item in balance_data.get('details', []):
-            if item['ccy'] == base_ccy: base_bal, avail_base_bal = Decimal(item.get('eq', '0')), Decimal(item.get('availEq', '0'))
-            elif item['ccy'] == quote_ccy: quote_bal, avail_quote_bal = Decimal(item.get('eq', '0')), Decimal(item.get('availEq', '0'))
+            if item['ccy'] == base_ccy: 
+                base_bal, avail_base_bal = Decimal(item.get('eq', '0')), Decimal(item.get('availEq', '0'))
+            elif item['ccy'] == quote_ccy: 
+                quote_bal, avail_quote_bal = Decimal(item.get('eq', '0')), Decimal(item.get('availEq', '0'))
+        
         with config_lock: symbol_api = dynamic_config["SYMBOL_API_FORMAT"]
         current_price = Decimal(okx_request('GET', f'/api/v5/market/ticker?instId={symbol_api}')['data'][0]['last'])
-        return {"base_bal": base_bal, "quote_bal": quote_bal, "avail_base_bal": avail_base_bal, "avail_quote_bal": avail_quote_bal, "current_price": current_price, "total_value_usdt": total_value_usdt}
-    except Exception as e: print_to_queue(log_queue, 'log', f"❌ 获取余额或价格失败: {e}"); return None
+        
+        return {"base_bal": base_bal, "quote_bal": quote_bal, "avail_base_bal": avail_base_bal, 
+                "avail_quote_bal": avail_quote_bal, "current_price": current_price, "total_value_usdt": total_value_usdt}
+    except Exception as e: 
+        # [i18n] 使用翻译函数记录日志
+        print_to_queue(log_queue, 'log', t("log_fetch_balance_error", error=e))
+        return None
 def guardian_loop(log_queue, stop_event, status_queue, t): # <-- 使用简短的 't' 作为翻译函数名
     # 使用 't' 来生成翻译后的日志
     print_to_queue(log_queue, 'log', t("log_guardian_started"))
@@ -429,45 +439,55 @@ def guardian_loop(log_queue, stop_event, status_queue, t): # <-- 使用简短的
             print_to_queue(log_queue, 'log', t("log_guardian_error", error=e))
             time.sleep(5)
     print_to_queue(log_queue, 'log', t("log_guardian_stopped"))
-def execute_smart_stop_loss(log_queue, min_sz, amount_precision, price_precision, lot_sz):
-
-    print_to_queue(log_queue, 'log', "🚨 [猎手] 收到止损信号！执行紧急市价清仓...")
+def execute_smart_stop_loss(log_queue, min_sz, amount_precision, price_precision, lot_sz, t):
+    """
+    [修复4 - 紧急止损]
+    1. 取消该交易对的所有挂单。
+    2. 立即通过市价单卖出所有可用余额。
+    """
+    print_to_queue(log_queue, 'log', t("log_sl_received"))
     with config_lock: cfg = dynamic_config.copy()
     symbol_api = cfg['SYMBOL_API_FORMAT']
 
-    # 第一步：取消所有挂单，避免干扰
     try:
         if all_pending := okx_request('GET', f"/api/v5/trade/orders-pending?instType=SPOT&instId={symbol_api}"):
             if cancel_reqs := [{"instId": symbol_api, "ordId": o['ordId']} for o in all_pending.get('data', [])]:
                 okx_request('POST', '/api/v5/trade/cancel-batch-orders', body_str=json.dumps(cancel_reqs))
-                print_to_queue(log_queue, 'log', f"   - ✅ 已取消 {len(cancel_reqs)} 个挂单。")
+                print_to_queue(log_queue, 'log', t("log_sl_cancelled_orders", count=len(cancel_reqs)))
     except Exception as e:
-        print_to_queue(log_queue, 'log', f"   - ⚠️ 取消挂单时发生错误 (将继续执行清仓): {e}")
+        print_to_queue(log_queue, 'log', t("log_sl_cancel_error", error=e))
 
-    # 第二步：立即以市价卖出全部可用仓位
     try:
-        balance_state = fetch_balances_and_price(log_queue)
+        balance_state = fetch_balances_and_price(log_queue, t) # 注意：这里也需要传递 t
         if balance_state and balance_state['avail_base_bal'] >= min_sz:
-            # 确保卖出数量符合交易所的步长要求
             sell_amount = (balance_state['avail_base_bal'] / lot_sz).quantize(Decimal('0'), ROUND_DOWN) * lot_sz
             if sell_amount >= min_sz:
-                print_to_queue(log_queue, 'log', f"   - ⚠️ 以市价紧急卖出 {sell_amount} {cfg['BASE_CURRENCY']}...")
+                print_to_queue(log_queue, 'log', t("log_sl_market_sell", amount=sell_amount, currency=cfg['BASE_CURRENCY']))
                 payload = {"instId": symbol_api, "tdMode": "cash", "side": "sell", "ordType": "market", "sz": f"{sell_amount:.{amount_precision}f}"}
                 okx_request('POST', '/api/v5/trade/order', body_str=json.dumps(payload))
-                print_to_queue(log_queue, 'log', "   - ✅ 紧急清仓指令已发送。")
+                print_to_queue(log_queue, 'log', t("log_sl_market_sell_sent"))
             else:
-                print_to_queue(log_queue, 'log', "   - ✅ 仓位低于最小交易量，无需市价清仓。")
+                print_to_queue(log_queue, 'log', t("log_sl_below_min_size"))
         else:
-            print_to_queue(log_queue, 'log', "   - ✅ 无可用仓位，止损完成。")
+            print_to_queue(log_queue, 'log', t("log_sl_no_position"))
     except Exception as e:
-        print_to_queue(log_queue, 'log', f"   - ❌ 市价清仓失败: {e}. 请立即手动检查并处理仓位！")
-def update_pnl_and_log(state, account_initial_value, log_queue, amount_precision):
+        print_to_queue(log_queue, 'log', t("log_sl_market_sell_error", error=e))
+def update_pnl_and_log(state, account_initial_value, log_queue, amount_precision, t):
     pnl = state["total_value_usdt"] - account_initial_value
     pnl_data = {"base_bal": f"{state['base_bal']}", "quote_bal": f"{state['quote_bal']:.4f}", "total_value_usdt": f"{state['total_value_usdt']:.4f}", "pnl": f"{pnl:+.4f}", "pnl_raw": pnl}
-    print_to_queue(log_queue, 'pnl', pnl_data); print_to_queue(log_queue, 'log', f"\n[{time.strftime('%H:%M:%S')}] P&L: {pnl:+.4f} | 净值: {state['total_value_usdt']:.4f} USD | 价格: {state['current_price']}")
+    print_to_queue(log_queue, 'pnl', pnl_data)
+    
+    # [i18n] 使用翻译函数记录日志
+    log_msg = t("log_pnl_update", 
+                timestamp=time.strftime('%H:%M:%S'), 
+                pnl=f"{pnl:+.4f}", 
+                net_worth=f"{state['total_value_usdt']:.4f}", 
+                price=state['current_price'])
+    print_to_queue(log_queue, 'log', log_msg)
+
     with open(LOG_FILE, 'a', newline='') as f:
         f.write(f"{datetime.datetime.now(datetime.UTC).isoformat()},{state['total_value_usdt']:.4f},{pnl:.4f}\n")
-def synchronize_orders(grid_orders, profit_orders, log_queue, price_precision):
+def synchronize_orders(grid_orders, profit_orders, log_queue, price_precision, t):
     with config_lock: cfg = dynamic_config.copy()
     newly_filled_buys, newly_filled_sells = [], []; all_tracked_ids = list(grid_orders.keys()) + list(profit_orders)
     pending_orders_response = okx_request('GET', f"/api/v5/trade/orders-pending?instType=SPOT&instId={cfg['SYMBOL_API_FORMAT']}")
@@ -480,10 +500,14 @@ def synchronize_orders(grid_orders, profit_orders, log_queue, price_precision):
     for ordId in list(grid_orders.keys()):
         if fills := fills_by_order_id.get(ordId):
             avg_price = sum(Decimal(f['fillPx'])*Decimal(f['fillSz']) for f in fills)/sum(Decimal(f['fillSz']) for f in fills);
-            print_to_queue(log_queue,'log',f"✅ 网格捕获！订单 {ordId} (buy) @ {avg_price:.{price_precision}f} 已成交。")
-            newly_filled_buys.extend(fills); grid_orders.pop(ordId, None)
+            print_to_queue(log_queue, 'log', t("log_order_sync_buy_filled", order_id=ordId, price=f"{avg_price:.{price_precision}f}"))
+            newly_filled_buys.extend(fills)
+            grid_orders.pop(ordId, None)
     for ordId in list(profit_orders):
-        if fills := fills_by_order_id.get(ordId): print_to_queue(log_queue, 'log', f"🎉 恭喜！盈利单 {ordId} 已成交！"); newly_filled_sells.extend(fills); profit_orders.discard(ordId)
+        if fills := fills_by_order_id.get(ordId): 
+            print_to_queue(log_queue, 'log', t("log_order_sync_sell_filled", order_id=ordId))
+            newly_filled_sells.extend(fills)
+            profit_orders.discard(ordId)
     still_pending_ids, now = {o['ordId'] for o in pending_orders_response.get('data', [])}, time.time()
     for ordId in list(grid_orders.keys()):
         if not (order_data := grid_orders.get(ordId)) or not isinstance(order_data, dict):
@@ -494,24 +518,24 @@ def synchronize_orders(grid_orders, profit_orders, log_queue, price_precision):
         if ordId not in still_pending_ids:
             profit_orders.discard(ordId)
     return grid_orders, profit_orders, pending_orders_response, newly_filled_buys, newly_filled_sells
-def cancel_stale_grid_orders(pending_orders_response, profit_orders, grid_orders, log_queue, symbol_api):
+def cancel_stale_grid_orders(pending_orders_response, profit_orders, grid_orders, log_queue, symbol_api, t):
     active_grid_ids, pending_api_ids = set(grid_orders.keys()), {o['ordId'] for o in (pending_orders_response.get('data') or [])}
     if ids_to_cancel := list((pending_api_ids - active_grid_ids) - profit_orders):
-        print_to_queue(log_queue, 'log', f"正在取消 {len(ids_to_cancel)} 笔过时买单...")
+        print_to_queue(log_queue, 'log', t("log_order_sync_cancel_stale", count=len(ids_to_cancel)))
         cancel_req = [{"instId": symbol_api, "ordId": oid} for oid in ids_to_cancel]
         okx_request('POST', '/api/v5/trade/cancel-batch-orders', body_str=json.dumps(cancel_req))
         for oid in ids_to_cancel: grid_orders.pop(oid, None)
     return grid_orders
-def place_new_strategy_orders(state, user_entered_capital, effective_mode, log_queue, price_precision, amount_precision, lot_sz, min_sz, chase_mode=False):
+def place_new_strategy_orders(state, user_entered_capital, effective_mode, log_queue, price_precision, amount_precision, lot_sz, min_sz, t, chase_mode=False):
     placed_orders, body = {}, []
     with config_lock: cfg = dynamic_config.copy()
     
-    # [FIX] Correctly get CHASE_SPREAD_FACTOR and calculate effective_spread
     effective_spread = cfg['SPREAD_PERCENTAGE']
     if chase_mode:
-        chase_factor = Decimal(cfg.get('CHASE_SPREAD_FACTOR', '0.1')) # Safely get the factor
+        chase_factor = Decimal(cfg.get('CHASE_SPREAD_FACTOR', '0.1'))
         effective_spread *= chase_factor
-        print_to_queue(log_queue, 'log', f"   - 追击模式激活！使用积极价差: {effective_spread:.4%}")
+        # [i18n] 使用翻译函数记录日志
+        print_to_queue(log_queue, 'log', t("log_chase_mode_activated", spread=f"{effective_spread:.4%}"))
 
     if effective_mode == "狙击" and state['avail_base_bal'] < lot_sz and state['avail_quote_bal'] >= user_entered_capital:
         px = (state['current_price'] * (Decimal('1') - effective_spread)).quantize(Decimal(f'1e-{price_precision}'), ROUND_DOWN)
@@ -540,7 +564,8 @@ def place_new_strategy_orders(state, user_entered_capital, effective_mode, log_q
             if res.get('sCode') == '0' and res.get('ordId'):
                 placed_orders[res['ordId']], s_count = {'side': req['side'], 'timestamp': time.time()}, s_count + 1
         if s_count > 0:
-            print_to_queue(log_queue, 'log', f"✅ 成功放置 {s_count} 笔新布局单。")
+            # [i18n] 使用翻译函数记录日志
+            print_to_queue(log_queue, 'log', t("log_place_order_success", count=s_count))
     return placed_orders
 def initialize_log_file():
     """检查日志文件，如果不存在则创建并写入表头。"""
@@ -582,7 +607,7 @@ def main_trading_loop(log_queue, stop_event, user_entered_capital, trading_mode,
         print_to_queue(log_queue, 'log', t("log_startup_failed_details", error=e)); return
 
     # --- 初始状态同步与恢复 ---
-    initial_state = fetch_balances_and_price(log_queue)
+    initial_state = fetch_balances_and_price(log_queue, t)
     if not initial_state:
         print_to_queue(log_queue, 'log', t("log_startup_failed_state")); return
     
@@ -622,7 +647,7 @@ def main_trading_loop(log_queue, stop_event, user_entered_capital, trading_mode,
             # --- 同步订单与更新状态 ---
             # [i18n] 将翻译函数 't' 传递给辅助函数
             grid_orders, profit_orders, pending, newly_filled_buys, newly_filled_sells = synchronize_orders(grid_orders, profit_orders, log_queue, price_precision, t)
-            state = fetch_balances_and_price(log_queue)
+            state = fetch_balances_and_price(log_queue,t)
             if state is None: stop_event.wait(cfg.get('POLL_FREQUENCY_SECONDS', 4)); continue
             update_pnl_and_log(state, account_initial_value, log_queue, amount_precision, t) # [i18n]
             
@@ -990,22 +1015,55 @@ class App(ctk.CTk):
     def save_settings(self, show_messagebox=True):
         try:
             temp_config = {}
+            # 遍历所有参数输入框
             for key, entry in self.param_entries.items():
+                # 只处理那些可见的、在UI上存在的输入框
                 if entry.winfo_exists():
-                    val = Decimal(entry.get())
-                    if val <= 0: raise ValueError(f"参数 '{key}' 必须为正数。")
-                    if "PERCENTAGE" in key: temp_config[key] = val/100
-                    elif key in ['POLL_FREQUENCY_SECONDS','GRID_PAIRS']: temp_config[key] = int(val)
-                    else: temp_config[key] = val
-            with config_lock: dynamic_config.update(temp_config)
-            cfg_to_save = {k:str(v) for k, v in dynamic_config.items() if not callable(v) and k not in ['SYMBOL_DISPLAY','BASE_CURRENCY','QUOTE_CURRENCY', 'price_precision', 'amount_precision']}
-            cfg_to_save.update(capital=self.entry_capital.get(), trading_mode=self.mode_selector.get())
-            cfg_to_save['capital_mode'] = self.capital_mode_selector.get()
-            cfg_to_save['capital_value'] = self.entry_capital.get()
-            with open(CONFIG_FILE, 'w') as f: json.dump(cfg_to_save, f, indent=4)
-            if show_messagebox: self.add_log_message(self.translator.get("log_settings_saved"))
+                    # 获取输入框的文本值
+                    value_str = entry.get()
+                
+                    # 【FIX】如果输入框为空，则跳过此参数，不进行保存
+                    if not value_str:
+                        continue
+
+                    # 现在我们可以安全地转换它，因为我们已经排除了空字符串
+                    val = Decimal(value_str)
+                
+                    if val <= 0:
+                        # [i18n] 使用翻译函数来显示错误消息
+                        error_msg = self.translator.get("param_must_be_positive", param_name=key)
+                        raise ValueError(error_msg)
+                
+                    if "PERCENTAGE" in key:
+                        temp_config[key] = val / 100
+                    elif key in ['POLL_FREQUENCY_SECONDS', 'GRID_PAIRS']:
+                        temp_config[key] = int(val)
+                    else:
+                        temp_config[key] = val
+
+            with config_lock:
+                dynamic_config.update(temp_config)
+        
+            cfg_to_save = {k: str(v) for k, v in dynamic_config.items() if not callable(v) and k not in ['SYMBOL_DISPLAY','BASE_CURRENCY','QUOTE_CURRENCY', 'price_precision', 'amount_precision']}
+        
+            # 确保从正确的输入框获取资金和模式
+            cfg_to_save.update(
+                trading_mode=self.mode_selector.get(),
+                capital_mode=self.capital_mode_selector.get(),
+                capital_value=self.entry_capital.get() or '0' # 如果为空，默认为'0'
+            )
+
+            with open(CONFIG_FILE, 'w') as f:
+                json.dump(cfg_to_save, f, indent=4)
+        
+            if show_messagebox:
+                self.add_log_message(self.translator.get("log_settings_saved"))
+
         except (ValueError, InvalidOperation) as e:
-            if show_messagebox: messagebox.showerror(self.translator.get("error_title"), self.translator.get("save_settings_error", error=e)); raise ValueError(e)
+            if show_messagebox:
+                messagebox.showerror(self.translator.get("error_title"), self.translator.get("save_settings_error", error=e))
+            # 重新抛出异常，以便在控制台中看到详细信息，有助于调试
+            raise ValueError(e)
     def _update_symbol_config_display(self, symbol):
         symbol = symbol.strip().upper()
         if not symbol or '-' not in symbol: return False
@@ -1023,8 +1081,11 @@ class App(ctk.CTk):
         self.set_ui_state(is_scanning=True)
         self.log_queue = queue.Queue()
     
+        # ▼▼▼【核心修改】▼▼▼
+        # 将翻译函数作为最后一个参数添加到*args中
         all_args = args + (self.translator.get,)
         threading.Thread(target=target_func, args=all_args, daemon=True).start()
+        # ▲▲▲【核心修改】▲▲▲
     
         self.after(100, self.check_queue)
     def start_scan(self):
@@ -1076,19 +1137,24 @@ class App(ctk.CTk):
             return
         
         self.set_ui_state(is_running=True)
+        # 在这里，我们不再硬编码日志消息，而是让后台线程自己记录启动日志
     
         capital, mode = Decimal(self.entry_capital.get()), self.mode_selector.get()
         self.log_queue, self.status_queue, self.stop_event = queue.Queue(), queue.Queue(), threading.Event()
     
+        # ▼▼▼【核心修改】▼▼▼
         # 获取翻译函数本身，以便传递给线程
         translator_func = self.translator.get
     
         threading.Thread(target=self.start_threads, args=(capital, mode, translator_func), daemon=True).start()
+        # ▲▲▲【核心修改】▲▲▲
     
         self.after(100, self.check_queue)
     def start_threads(self, capital, mode, translator_func): # <-- 添加新参数
+        # ▼▼▼【核心修改】▼▼▼
         self.guardian_thread = threading.Thread(target=guardian_loop, args=(self.log_queue, self.stop_event, self.status_queue, translator_func), daemon=True)
         self.bot_thread = threading.Thread(target=main_trading_loop, args=(self.log_queue, self.stop_event, capital, mode, self.status_queue, translator_func), daemon=True)
+        # ▲▲▲【核心修改】▲▲▲
     
         self.guardian_thread.start()
         self.bot_thread.start()
@@ -1265,5 +1331,4 @@ if __name__ == '__main__':
         app = App()
         app.mainloop()
     except Exception as e:
-
         traceback.print_exc()
